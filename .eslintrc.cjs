@@ -16,7 +16,7 @@ module.exports = {
     ],
     "@typescript-eslint/explicit-function-return-type": [
       "error",
-      { "allowExpressions": true}
-    ]
+      { "allowExpressions": true},
+    ],
   },
 }

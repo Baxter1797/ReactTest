@@ -1,4 +1,4 @@
-import userDetails from "../types/userDetails";
+import userDetails from "../interfaces/IuserDetails";
 
 function HelloWorld(userDetails: userDetails): JSX.Element {
     return (

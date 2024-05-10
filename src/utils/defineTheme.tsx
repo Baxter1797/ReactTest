@@ -2,6 +2,7 @@ import { ThemeOptions } from "@mui/material"
 
 const darkPallete = {
     default: '#1e2124',
+    consoleBlack: '#0f1012',
     light: '#424549',
     main: '#36393e',
     dark: '#282b30',
@@ -21,7 +22,8 @@ export default function defineTheme(prefferedTheme: string): ThemeOptions {
             palette: {
             mode: "dark",
             background: {
-              default: darkPallete.default
+              default: darkPallete.default,
+              consoleBlack: darkPallete.consoleBlack
             },
             primary: {
               light: darkPallete.light,

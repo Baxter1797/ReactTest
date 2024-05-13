@@ -36,7 +36,7 @@ function App(): JSX.Element {
     themeContext=defineTheme("dark");
     setTheme();
   } else {
-    themeContext=defineTheme("light")
+    themeContext=defineTheme("dark")
     setTheme();
   }
 

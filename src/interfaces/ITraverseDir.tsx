@@ -7,7 +7,7 @@ interface ITraverseDir {
     lastModified: number,
     canWrite: boolean;
     fileSize: number;
-    children?: ITraverseDir[];
+    children: ITraverseDir[];
 }
 
 export default ITraverseDir

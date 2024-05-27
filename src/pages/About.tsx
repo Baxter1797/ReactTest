@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 // MUI Components
 import Button from "@mui/material/Button";
 import Box from "@mui/material/Box";
-import TreeViewTest from "../components/TreeViewTest";
+import TreeViewTest from "../components/Shared/TreeViewTest";
 
 function About(): JSX.Element {
     const { id } = useParams();

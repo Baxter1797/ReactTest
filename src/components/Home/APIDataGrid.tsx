@@ -137,7 +137,7 @@ function APIDataGrid(props: APIGridDataProps): JSX.Element {
         props.setGraphDisplayTypeRef(index)
     }
 
-    console.log('Refreshed APIDataGrid')
+    //console.log('Refreshed APIDataGrid')
 
     return (
         <>

@@ -5,7 +5,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import ApiIcon from '@mui/icons-material/Api';
 import GreenPlusIcon from '../../assets/plus-circle-green.svg'
 import validateAPI from "../../utils/validateAPI";
-import IsnackbarProperties from "../../interfaces/IsnackbarProperties";
+import IsnackbarProperties from "../../interfaces/ISnackbarProperties";
 
 interface APISubmitFormDetails {
     addNewSeries(dataObject: IlineChartSeries[]): void;
@@ -70,7 +70,7 @@ function APISubmitForm (props: APISubmitFormDetails): JSX.Element {
         }
     }
 
-    console.log('Updated form')
+    //console.log('Updated form')
 
     return (
         <>

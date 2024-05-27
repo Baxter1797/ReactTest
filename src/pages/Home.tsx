@@ -3,7 +3,7 @@ import APIPerformanceChart from '../components/Home/APIPerformanceChart.tsx';
 
 function Home(): JSX.Element {
 
-    console.log('Refreshed Home!')
+    //console.log('Refreshed Home!')
 
     return (
     <>  

@@ -1,27 +1,17 @@
-import { ChevronRight, ExpandMore } from "@mui/icons-material"
-import { TreeItem, TreeView } from "@mui/x-tree-view"
+import { SimpleTreeView, TreeItem } from "@mui/x-tree-view"
 import ITraverseDir from "../../interfaces/ITraverseDir"
-import { useMemo, useRef, useState } from "react"
+import {useContext, useMemo, useRef, useState } from "react"
 import IApiOptions from "../../interfaces/IApiOptions"
 import ApiRequest from "../../utils/apiRequest"
 import { z } from "zod"
-import IsnackbarProperties from "../../interfaces/IsnackbarProperties"
-
-// Add function for handling setting the stage on new connect
-// Could use a flag so that when this is true, set the stage
-// Flag could be shouldResetRenderTree
-// Or just agree to handle most of the state within the parent object, since this needs to be shared between multiple comps
-// Then wrap the render of the TextField in a useMemo hook so that big files don't cause any performance hits when they need to be re-rendered
+import { TreeViewContext } from "../../contexts/TreeViewContext"
+import APIConnectionContext from "../../contexts/APIConnectionContext"
+import KeyboardArrowRightSharpIcon from '@mui/icons-material/KeyboardArrowRightSharp';
+import { useSnackbar } from "../../contexts/SnackbarContext"
 
 interface ITVM_RenderTree {
-    traverseList: ITraverseDir
-    setTraverseList: React.Dispatch<React.SetStateAction<ITraverseDir>>
-    //isNewConnectionFlag: boolean
-    apiConnectionDetails: {dns: string, endPoint: string}
-    expandedNodes: string[]
-    handleTraverseClick(node: ITraverseDir): Promise<void>
-    handleSnackbarRequest(snackbarProperties: IsnackbarProperties): void
-    setFileAttributes(fileContents: string, isFileActive: boolean, fileAttributes: {path: string, canWrite: boolean, executable: boolean, fileSize: number, lastModified: number}): void
+    updateContext?: boolean
+    handleFileClick(node: ITraverseDir): Promise<void>
 }
 
 const traverseDirModel = z.object({
@@ -34,44 +24,67 @@ const traverseDirModel = z.object({
 })
 const traversDirModels = z.array(traverseDirModel)
 
-const traverseFileModel = z.string()
+const apiBaseEndPoint = '/grc/ext/NFR'
+const listDirEndPoint = '/ListDir'
 
-function TVM_RenderTree(props: ITVM_RenderTree): JSX.Element {
-    /*const [traverseList, setTraverseList] = useState<ITraverseDir>({
-        id: '0',
-        fileName: 'Init state',
-        type: 'dir',
-        path: 'Init State',
-        canWrite: false,
-        executable: false,
-        fileSize: 1234556,
-        lastModified: 1234456,
-        children: [],
-    })*/
-    const [expandedNodeIds, setExpandedNodeIds] = useState<string[]>([])
-    const nodeId = useRef<number>(0)
+export default function TVM_RenderTree(props: ITVM_RenderTree): JSX.Element {
+    const treeViewContext = useContext(TreeViewContext)
+    const apiConnectionContext = useContext(APIConnectionContext)
+
+    if (!treeViewContext || !apiConnectionContext) {
+        throw new Error('TreeView and apiContext must be used within a the respected providers!')
+    }
+
+    const { traverseList, setTraverseList, expandedNodeIds, setExpandedNodeIds, nodeId } = treeViewContext
+    const { activeDNSRef, usernameRef, passwordRef } = apiConnectionContext
+
+    const { openSnackbar } = useSnackbar();
+    
+    const [traverseListLocal, setTraverseListLocal] = useState<ITraverseDir>(traverseList)
+    const [expandedNodeIdsLocal, setExpandedNodeIdsLocal] = useState<string[]>(expandedNodeIds)
+    const nodeIdLocal = useRef<number>(nodeId.current)
     const isClosingRef = useRef<boolean>(false)
     
     const renderedTree = useMemo(() => {
-        console.log('Running traverse list render')
-        return renderTree(props.traverseList)
-    }, [props.traverseList])
+        //console.log('Running traverse list render')
+        if (props.updateContext) {
+            return renderTree(traverseList)
+        } else {
+            return renderTree(traverseListLocal)
+        }
+    }, [traverseList,traverseListLocal])
 
-    const dns = props.apiConnectionDetails.dns
-    const endPoint = props.apiConnectionDetails.endPoint
+    function handleTreeUpdate (idToUpdate: string, updatedProperties: object): void {
+        if (props.updateContext) {
+            setTraverseList(updateObjectById(traverseList, idToUpdate, updatedProperties))
+        } else {
+            setTraverseListLocal(updateObjectById(traverseListLocal, idToUpdate, updatedProperties))
+        }
+    }
 
     async function handleTraverseClick(node: ITraverseDir): Promise<void> {
         if (node.type == 'dir') {
-            const expandedNodeIndex = expandedNodeIds.indexOf(node.id)
+            let expandedNodeIndex
+            if (props.updateContext) {
+                expandedNodeIndex = expandedNodeIds.indexOf(node.id)
+            } else {
+                expandedNodeIndex = expandedNodeIdsLocal.indexOf(node.id)
+            }
             if (expandedNodeIndex >= 0) {
                 const updatedProperties = {children: []}
                 // Sleep are so that animation can take place, 500ms is what the animation is set to. This allows time for it to complete smoothly
+                // Is closing checks are in place to prevent fetching if user quickly closes and re opens a folder - prevents race conditions now that animation sleeps are in place.
+                // Make improvement in that when a user quickly closes and opens a DIR, refresh that DIR with the latest data regardless, or even better, have a refresh button next to DIRs
                 if (expandedNodeIndex > 0) {
                     isClosingRef.current = true
-                    await unsetExpandedDirs(node, expandedNodeIds)
+                    if (props.updateContext) {
+                        await unsetExpandedDirs(node, expandedNodeIds)
+                    } else {
+                        await unsetExpandedDirs(node, expandedNodeIdsLocal)
+                    }
                     await new Promise(resolve => setTimeout(resolve, 500))
                     if (isClosingRef.current) {
-                        props.setTraverseList(updateObjectById(props.traverseList, node.id, updatedProperties))
+                        handleTreeUpdate(node.id, updatedProperties)
                         isClosingRef.current = false
                     }
                 } else {
@@ -79,15 +92,15 @@ function TVM_RenderTree(props: ITVM_RenderTree): JSX.Element {
                     await unsetAllExpandedDirs()
                     await new Promise(resolve => setTimeout(resolve, 500))
                     if (isClosingRef.current) {
-                        props.setTraverseList(updateObjectById(props.traverseList, node.id, updatedProperties))
+                        handleTreeUpdate(node.id, updatedProperties)
                         isClosingRef.current = false
                     }
                 }
             } else {
                 try {
-                    const updatedProperties = await fetchDirData(node.path)
-                    props.setTraverseList(updateObjectById(props.traverseList, node.id, updatedProperties))
                     if (!isClosingRef.current) {
+                        const updatedProperties = await fetchDirData(node.path)
+                        handleTreeUpdate(node.id, updatedProperties)
                         setExpandedDirs(node)
                     } else {
                         isClosingRef.current = false
@@ -99,37 +112,77 @@ function TVM_RenderTree(props: ITVM_RenderTree): JSX.Element {
                 }
             }
         } else {
-            try {
-                const fileContent = await fetchFileData(node.path)
-                props.setFileAttributes(fileContent, true, {path: node.path, canWrite: node.canWrite, executable: node.executable, fileSize: node.fileSize, lastModified: node.lastModified})
-            } catch (error) {
-                console.log("Error fetching and setting clicked file!")
-            }
+            props.handleFileClick(node)
         }
     }
 
     function setExpandedDirs(node: ITraverseDir): void {
-        expandedNodeIds.push(node.id)
-        setExpandedNodeIds(expandedNodeIds)
+        if (props.updateContext) {
+            setExpandedNodeIds([...expandedNodeIds, node.id])
+        } else {
+            setExpandedNodeIdsLocal([...expandedNodeIdsLocal, node.id])
+        }
     }
 
     async function unsetAllExpandedDirs(): Promise<void>{
-        setExpandedNodeIds([])
+        if (props.updateContext) {
+            setExpandedNodeIds([])
+        } else {
+            setExpandedNodeIdsLocal([])
+        }
     }
 
     async function unsetExpandedDirs(node: ITraverseDir, expandedNodes: string[]): Promise<void> {
-        const expandedNodesIndex = expandedNodes.indexOf(node.id)
-        if (expandedNodesIndex >= 0) {
-            expandedNodes.splice(expandedNodesIndex, expandedNodesIndex)
-        }
         if (node.children?.length != 0) {
             if (node.children != undefined) {
                 for (let i = 0; i < node.children.length; ++i) {
-                    unsetExpandedDirs(node.children[i], expandedNodes)
+                    unsetExpandedDirs(node.children[i], expandedNodes.filter((currentNode) => currentNode !== node.id))
                 }
             }
         } else {
-            setExpandedNodeIds(expandedNodes)
+            if (props.updateContext) {
+                setExpandedNodeIds(expandedNodes)
+            } else {
+                setExpandedNodeIdsLocal(expandedNodes)
+            }
+        }
+    }
+
+    async function fetchDirData(parentPath: string): Promise<object> {
+        //await new Promise(resolve => setTimeout(resolve, 500))
+        const url = activeDNSRef.current+apiBaseEndPoint+listDirEndPoint
+        try {
+            const apiOptions: IApiOptions = {
+                url: url,
+                method: 'GET',
+                params: {path: parentPath},
+                auth: {username: usernameRef.current, password: passwordRef.current}
+            }
+            const {data} = await ApiRequest(apiOptions)
+            try {
+                traversDirModels.parse(data)
+                let someArray: ITraverseDir[]
+                if (props.updateContext) {
+                    someArray = data.map(object => {
+                        ++nodeId.current
+                        return {...object, id: nodeId.current.toString(), path: parentPath+'/'+object.fileName , children: []}
+                    })
+                } else {
+                    someArray = data.map(object => {
+                        ++nodeIdLocal.current
+                        return {...object, id: nodeIdLocal.current.toString(), path: parentPath+'/'+object.fileName , children: []}
+                    })
+                }
+                const returnObject = {children: [...someArray]}
+                return returnObject
+            } catch (error) {
+                console.log('JSON PARSING ERROR!!!')
+                openSnackbar('Unable to fetch data for '+url+'\n\nJSON Parsing Error! Data returned did not match expected type.', 'error')
+                throw Error
+            }
+        } catch (error) {
+            openSnackbar('Unable to fetch data for '+url, 'error')
+            throw Error
         }
     }
 
@@ -145,72 +198,27 @@ function TVM_RenderTree(props: ITVM_RenderTree): JSX.Element {
         return obj;
     }
 
-    async function fetchDirData(parentPath: string): Promise<object> {
-        const url = dns+endPoint
-        try {
-            const apiOptions: IApiOptions = {
-                url: url,
-                method: 'GET',
-                params: {path: parentPath}
-            }
-            const {data} = await ApiRequest(apiOptions)
-            try {
-                traversDirModels.parse(data)
-                const someArray: ITraverseDir[] = data.map(object => {
-                    ++nodeId.current
-                    return {...object, id: nodeId.current.toString(), path: parentPath+'/'+object.fileName , children: []}
-                })
-                const returnObject = {children: [...someArray]}
-                return returnObject
-            } catch (error) {
-                console.log('JSON PARSING ERROR!!!')
-                props.handleSnackbarRequest({message: 'Unable to fetch data for '+url+'\n\nJSON Parsing Error! Data returned did not match expected type.', severity:'error'})
-                throw Error
-            }
-        } catch (error) {
-            props.handleSnackbarRequest({message: 'Unable to fetch data for '+url, severity:'error'})
-            throw Error
-        }
-    }
-
-    async function fetchFileData(parentPath: string): Promise<string> {
-        const url = dns+endPoint
-        try {
-            const apiOptions: IApiOptions = {
-                url: url,
-                method: 'GET',
-                params: {path: parentPath}
-            }
-            const {data} = await ApiRequest(apiOptions)
-            try {
-                traverseFileModel.parse(data)
-                return data
-            } catch (error) {
-                console.log('Error passing file data as string')
-                props.handleSnackbarRequest({message: 'Error when parsing returned data to string. Ensure fetch is requesting a file and not a DIR', severity: 'error'})
-                throw Error
-            }
-        } catch (error) {
-            console.log("Error fetching data for the URL: "+url)
-            props.handleSnackbarRequest({message: 'Error fetching data for the address: '+url, severity: 'error'})
-            throw Error
-        }
-    }
-
     function renderTree(nodes: ITraverseDir): JSX.Element {
         return (
-        <TreeItem TransitionProps={{timeout: 500}} key={nodes.id} nodeId={nodes.id} label={nodes.fileName} onClick={() => handleTraverseClick(nodes)} icon={nodes.type == 'dir' && !expandedNodeIds.includes(nodes.id) && <ChevronRight color="secondary"/>} >
+        <>
+        {nodes.type === 'file' ?
+        <TreeItem itemId={nodes.id} key={nodes.id} label={nodes.fileName} onClick={() => handleTraverseClick(nodes)} />
+        :
+        <TreeItem itemId={nodes.id} key={nodes.id} label={nodes.fileName} onClick={() => handleTraverseClick(nodes)} slots={{endIcon: KeyboardArrowRightSharpIcon}}>
             {Array.isArray(nodes.children) ? nodes.children.map((node) => renderTree(node)) : null}
         </TreeItem>
-    )}
+        }
+        </>
+        )
+    }
+
+    //console.log('TVM_RenderTree refreshed!')
 
     return (
         <>
-            <TreeView defaultExpandIcon={<ChevronRight color="secondary"/>} defaultCollapseIcon={<ExpandMore color="secondary"/> } expanded={expandedNodeIds}>
+            <SimpleTreeView expandedItems={props.updateContext? expandedNodeIds : expandedNodeIdsLocal} >
                 {renderedTree}
-            </TreeView>
+            </SimpleTreeView>
         </> 
     )
 }
-
-export default TVM_RenderTree

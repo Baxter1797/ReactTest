@@ -8,7 +8,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import APIDataGrid from "./APIDataGrid"
 import { DataObject } from "@mui/icons-material"
 import CloseIcon from '@mui/icons-material/Close';
-import IsnackbarProperties from "../../interfaces/IsnackbarProperties"
+import IsnackbarProperties from "../../interfaces/ISnackbarProperties"
 
 function APIPerformanceChart(): JSX.Element {
 
@@ -203,7 +203,7 @@ function APIPerformanceChart(): JSX.Element {
         setIsSnackbarOpen(false)
     }
 
-    console.log('refreshed API performance chart')
+    //console.log('refreshed API performance chart')
 
     return (
         <>

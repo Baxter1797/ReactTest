@@ -1,16 +1,20 @@
 import { Dialog, Typography, DialogContent, Box, DialogContentText, TextField, Button, Alert, AlertTitle, Divider } from "@mui/material"
 import LaptopIcon from '@mui/icons-material/Laptop';
 import CancelPresentationIcon from '@mui/icons-material/CancelPresentation';
-import {useRef, useState } from "react";
+import {useContext, useRef, useState } from "react";
 import {z} from 'zod'
 import ITraverseDir from "../../interfaces/ITraverseDir";
 import IApiOptions from "../../interfaces/IApiOptions";
 import ApiRequest from "../../utils/apiRequest";
+import { TreeViewUpdateContext } from "../../contexts/TreeViewContext";
+import APIConnectionContext from "../../contexts/APIConnectionContext";
+import { FileAttributesUpdateContext } from "../../contexts/FileAttributesContext";
+import { useSnackbar } from "../../contexts/SnackbarContext";
 
 interface IConnectSessionForm {
     isConnectSessionOpen: boolean
     setIsConnectSessionOpen: React.Dispatch<React.SetStateAction<boolean>>
-    setStageOnNewConnect(initialObject: ITraverseDir, initialPath: string, dns: string, username: string, password: string): void
+    setIsActiveSession: React.Dispatch<React.SetStateAction<boolean>>
 }
 
 const traverseDirModel = z.object({
@@ -27,11 +31,23 @@ const apiBaseEndPoint = '/grc/ext/NFR'
 const listDirEndPoint = '/ListDir'
 
 function ConnectSessionForm(props: IConnectSessionForm): JSX.Element {
+    const treeViewContext = useContext(TreeViewUpdateContext)
+    const apiConnectionContext = useContext(APIConnectionContext)
+    const fileAttributesUpdateContext = useContext(FileAttributesUpdateContext)
+
+    if (!treeViewContext || !apiConnectionContext || !fileAttributesUpdateContext) {
+        throw new Error('TreeView and apiContext must be used within a the respected providers!')
+    }
+
+    const { updateTree } = treeViewContext
+    const { activeDNSRef, usernameRef, passwordRef } = apiConnectionContext
+    const { updateIsContentReadOnly, updateIsFileActive, updateFileContent } = fileAttributesUpdateContext
+    const { openSnackbar } = useSnackbar()
     const [isAddressInputValid, setIsAddressInputValid] = useState<boolean>(true)
     const [errorReason, setErrorReason] = useState<string>('')
     const isConnectSessionOpenRef = useRef<boolean>(false)
-    const dnsInputFieldRef = useRef<string>('')
-    const filePathInputFieldRef = useRef<string>('')
+    const dnsInputFieldRef = useRef<string>(window.location.origin)
+    const filePathInputFieldRef = useRef<string>('/')
     const usernameFieldRef  = useRef<string>('')
     const passwordFieldRef = useRef<string>('')
 
@@ -97,8 +113,7 @@ function ConnectSessionForm(props: IConnectSessionForm): JSX.Element {
             path: filePathInputFieldRef.current,
             children: []
         }
-
-        props.setStageOnNewConnect(initialTravereseResponse, filePathInputFieldRef.current, dnsInputFieldRef.current, usernameFieldRef.current, passwordFieldRef.current)
+        setStageOnConnect(initialTravereseResponse)
     }
 
     function handleKeyDown(e: React.KeyboardEvent): void {
@@ -109,7 +124,27 @@ function ConnectSessionForm(props: IConnectSessionForm): JSX.Element {
         }
     }
 
-    console.log('Connect form refreshed!')
+    function setStageOnConnect(initialNode: ITraverseDir): void {
+        try {
+            activeDNSRef.current = dnsInputFieldRef.current
+            usernameRef.current = usernameFieldRef.current
+            passwordRef.current = passwordFieldRef.current
+            props.setIsConnectSessionOpen(false)
+            //fileContentRef.current = ''
+            updateFileContent('')
+            //setIsFileContentReadOnly(true)
+            updateIsContentReadOnly(true)
+            //setIsFileActive(false)
+            updateIsFileActive(false)
+            props.setIsActiveSession(true)
+            updateTree(initialNode)
+            openSnackbar('Successfully established connection to '+activeDNSRef.current, 'success')
+        } catch (error) {
+            openSnackbar('Failed to set the stage for: '+activeDNSRef.current, 'error')
+        }
+    }
+
+    //console.log('Connect form refreshed!')
 
     return (
         <>

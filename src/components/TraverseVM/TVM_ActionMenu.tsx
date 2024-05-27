@@ -2,7 +2,6 @@ import { Button, ListItemIcon, ListItemText, Menu, MenuItem, SvgIconTypeMap } fr
 import IApiOptions from "../../interfaces/IApiOptions"
 import ApiRequest from "../../utils/apiRequest"
 import CopyFileForm from "./ActionMenuForms/CopyFileForm"
-import IsnackbarProperties from "../../interfaces/IsnackbarProperties"
 import FileCopyIcon from '@mui/icons-material/FileCopy';
 import DescriptionIcon from '@mui/icons-material/Description';
 import NoteAddIcon from '@mui/icons-material/NoteAdd';
@@ -12,27 +11,21 @@ import SaveIcon from '@mui/icons-material/Save';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { OverridableComponent } from "@mui/material/OverridableComponent"
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import { useRef, useState } from "react"
-import ITraverseDir from "../../interfaces/ITraverseDir"
+import { useContext, useRef, useState } from "react"
 import RenameFileForm from "./ActionMenuForms/RenameFileForm"
 import CreateNewFileForm from "./ActionMenuForms/CreateNewFileForm"
 import ExecuteFileForm from "./ActionMenuForms/ExecuteFileForm"
-import ConfirmationDialog from "../ConfirmationDialog"
+import ConfirmationDialog from "../Shared/ConfirmationDialog"
+import { useSnackbar } from "../../contexts/SnackbarContext"
+import APIConnectionContext from "../../contexts/APIConnectionContext";
+import { FileAttributesContext } from "../../contexts/FileAttributesContext";
 
 interface ITVM_ActionMenu {
-    traverseListDetails: {traverseList: ITraverseDir, expandedNodeIds: string[], nodeId: number}
-    fileContent: string
-    currentFileAttributes: {path: string, executable: boolean, lastModified: number, canWrite: boolean, fileSize: number}
-    isActionMenuDisabled: boolean
     isActionMenuOpen: boolean
     anchorEl: null | HTMLElement
     handleDeleteFile(): void
-    setCurrentFileAttributes: React.Dispatch<React.SetStateAction<{path: string;executable: boolean, lastModified: number, canWrite: boolean, fileSize: number}>>
     handleActionMenuClose(): void
     handleActionMenuOpen(event: React.MouseEvent<HTMLButtonElement>): void
-    handleSnackbarRequest(snackbarProperties: IsnackbarProperties): void
-    setActiveFilePath: React.Dispatch<React.SetStateAction<string>>
-    apiConnectionDetails: {dns: string, handleFileEndPoint: string, executeFileEndPoint: string, listDirEndPoint: string, username: string, password: string}
 }
 
 const actionMenuOptions: { itemName: string, action: string, icon: OverridableComponent<SvgIconTypeMap<object, "svg">> & { muiName: string;} }[] = [
@@ -45,18 +38,21 @@ const actionMenuOptions: { itemName: string, action: string, icon: OverridableCo
     {itemName: 'Delete', action: 'delete', icon: DeleteIcon},
 ];
 
-function TVM_ActionMenu(props: ITVM_ActionMenu): JSX.Element {
-    const dns = props.apiConnectionDetails.dns
-    const handleFileEndPoint = props.apiConnectionDetails.handleFileEndPoint
-    const executeFileEndPoint = props.apiConnectionDetails.executeFileEndPoint
-    const listDirEndPoint = props.apiConnectionDetails.listDirEndPoint
-    const username = props.apiConnectionDetails.username
-    const password = props.apiConnectionDetails.password
+export default function TVM_ActionMenu(props: ITVM_ActionMenu): JSX.Element {
+    const apiConnectionContext = useContext(APIConnectionContext)
+    const fileAttributesContext = useContext(FileAttributesContext)
+
+    if (!apiConnectionContext || !fileAttributesContext) {
+        throw new Error('Appropriate contexts must be supplied!')
+    }
+
+    const { activeDNSRef, usernameRef, passwordRef, apiBaseEndPoint, handleFileChangeEndPoint } = apiConnectionContext
+    const { currentFileAttributes, setCurrentFileAttributes, fileContentRef, isFileActive } = fileAttributesContext
+    
+    const { openSnackbar } = useSnackbar();
     const isActionMenuOpen = props.isActionMenuOpen
-    const isActionMenuDisabled = props.isActionMenuDisabled
+    //const isActionMenuDisabled = props.isActionMenuDisabled
     const anchorEl = props.anchorEl
-    const currentFileAttributes = props.currentFileAttributes
-    const fileContent = props.fileContent
 
     const [isCopyFileFormOpen, setIsCopyFileFormOpen] = useState<boolean>(false)
     const [isRenameFileFormOpen, setIsRenameFileFormOpen] = useState<boolean>(false)
@@ -76,20 +72,20 @@ function TVM_ActionMenu(props: ITVM_ActionMenu): JSX.Element {
 
     async function handleActionMenuRequest(action: string): Promise<void> {
         handleActionMenuClose()
-        const url  = dns+handleFileEndPoint
+        const url  = activeDNSRef.current+apiBaseEndPoint+handleFileChangeEndPoint
         switch(action) {
             case 'update': {
                 const apiOptions: IApiOptions = {
                     method: 'POST',
                     url: url,
-                    params: {path: currentFileAttributes.path, action: 'update', content: fileContent},
-                    auth: {username: username, password: password}
+                    params: {path: currentFileAttributes.path, action: 'update', content: fileContentRef.current},
+                    auth: {username: usernameRef.current, password: passwordRef.current}
                 }
                 try {
                     await ApiRequest(apiOptions)
-                    props.handleSnackbarRequest({message: 'Successfully saved the file', severity: 'success'})
+                    openSnackbar('Successfully saved the file', 'success')
                 } catch (error) {
-                    props.handleSnackbarRequest({message: 'Failed to save the file', severity: 'error'})
+                    openSnackbar('Failed to save the file', 'error')
                 }
                 break
             }
@@ -126,47 +122,47 @@ function TVM_ActionMenu(props: ITVM_ActionMenu): JSX.Element {
     }
 
     async function deleteFile(): Promise<void> {
-        const url  = dns+handleFileEndPoint
+        const url  = activeDNSRef.current+apiBaseEndPoint+handleFileChangeEndPoint
         const apiOptions: IApiOptions = {
             method: 'POST',
             url: url,
             params: {path: currentFileAttributes.path, action: 'delete'},
-            auth: {username: username, password: password}
+            auth: {username: usernameRef.current, password: passwordRef.current}
         }
         try {
             await ApiRequest(apiOptions)
             props.handleDeleteFile()
-            props.handleSnackbarRequest({message: 'Successfully deleted the file', severity: 'success'})
+            openSnackbar('Successfully deleted the file', 'success')
         } catch (error) {
-            props.handleSnackbarRequest({message: 'Failed to delete the file', severity: 'error'})
+            openSnackbar('Failed to delete the file', 'error')
         }
     }
 
     async function setExecutable(): Promise<void> {
-        const url  = dns+handleFileEndPoint
+        const url  = activeDNSRef.current+apiBaseEndPoint+handleFileChangeEndPoint
         const apiOptions: IApiOptions = {
             method: 'POST',
             url: url,
             params: {path: currentFileAttributes.path, action: 'executable'},
-            auth: {username: username, password: password}
+            auth: {username: usernameRef.current, password: passwordRef.current}
         }
         try {
             await ApiRequest(apiOptions)
-            props.setCurrentFileAttributes({...currentFileAttributes, executable: true})
-            props.handleSnackbarRequest({message: 'Successfully set file as executable', severity: 'success'})
+            setCurrentFileAttributes({...currentFileAttributes, executable: true})
+            openSnackbar('Successfully set file as executable', 'success')
         } catch (error) {
-            props.handleSnackbarRequest({message: 'Failed to set file as executable', severity: 'error'})
+            openSnackbar('Failed to set file as executable', 'error')
         }
     }
 
-    console.log('TVM_ActionMenu refreshed!')
+    //console.log('TVM_ActionMenu refreshed!')
 
     return (
         <>
-            <Button variant="contained" endIcon={<ArrowDropDownIcon />} disabled={!isActionMenuDisabled} sx={{ textTransform: 'none', marginLeft: '6px', marginBottom: '6px' }} onClick={handleActionMenuOpen}>Actions</Button>
+            <Button variant="contained" endIcon={<ArrowDropDownIcon />} disabled={!isFileActive} sx={{ textTransform: 'none', marginLeft: '6px', marginBottom: '6px' }} onClick={handleActionMenuOpen}>Actions</Button>
             <Menu id="basic-menu" transformOrigin={{vertical: 'top', horizontal: 'right'}} anchorOrigin={{vertical: 'bottom', horizontal: 'right'}} anchorEl={anchorEl} open={isActionMenuOpen} onClose={handleActionMenuClose}>
                 {actionMenuOptions.map((value, i) => (
-                    <MenuItem key={i} onClick={() => handleActionMenuRequest(value.action)} disabled={(value.itemName != 'Create New File' && !props.currentFileAttributes.canWrite) || (value.itemName == 'Run Script' && !props.currentFileAttributes.executable)}>
+                    <MenuItem key={i} onClick={() => handleActionMenuRequest(value.action)} disabled={(value.itemName != 'Create New File' && !currentFileAttributes.canWrite) || (value.itemName == 'Run Script' && !currentFileAttributes.executable)}>
                         <ListItemIcon>
                             {<value.icon fontSize='medium'/>}
                         </ListItemIcon>
@@ -175,16 +171,16 @@ function TVM_ActionMenu(props: ITVM_ActionMenu): JSX.Element {
                 ))}
             </Menu>
             { isCopyFileFormOpen &&
-                <CopyFileForm traverseListDetails={props.traverseListDetails} apiConnectionDetails={{dns: dns, endPoint: handleFileEndPoint, listDirEndPoint: listDirEndPoint, username: username, password: password}} isCopyFileFormOpen={isCopyFileFormOpen} setIsCopyFileFormOpen={setIsCopyFileFormOpen} sourceFilePath={currentFileAttributes.path} handleSnackbarRequest={props.handleSnackbarRequest}/>
+                <CopyFileForm isCopyFileFormOpen={isCopyFileFormOpen} setIsCopyFileFormOpen={setIsCopyFileFormOpen} />
             }
             { isRenameFileFormOpen &&
-                <RenameFileForm traverseListDetails={props.traverseListDetails} apiConnectionDetails={{dns: dns, endPoint: handleFileEndPoint, listDirEndPoint: listDirEndPoint, username: username, password: password}} isRenameFileFormOpen={isRenameFileFormOpen} setIsRenameFileFormOpen={setIsRenameFileFormOpen} currentFileAttributes={currentFileAttributes} setCurrentFileAttributes={props.setCurrentFileAttributes} handleSnackbarRequest={props.handleSnackbarRequest} setActiveFilePath={props.setActiveFilePath}/>
+                <RenameFileForm isRenameFileFormOpen={isRenameFileFormOpen} setIsRenameFileFormOpen={setIsRenameFileFormOpen} />
             }
             { isCreateNewFileFormOpen &&
-                <CreateNewFileForm traverseListDetails={props.traverseListDetails} apiConnectionDetails={{dns: dns, endPoint: handleFileEndPoint, listDirEndPoint: listDirEndPoint, username: username, password: password}} isCreateNewFileFormOpen={isCreateNewFileFormOpen} setIsCreateNewFileFormOpen={setIsCreateNewFileFormOpen} sourceFilePath={currentFileAttributes.path} handleSnackbarRequest={props.handleSnackbarRequest}/>
+                <CreateNewFileForm isCreateNewFileFormOpen={isCreateNewFileFormOpen} setIsCreateNewFileFormOpen={setIsCreateNewFileFormOpen} />
             }
             { isExecuteFileFormOpen &&
-                <ExecuteFileForm apiConnectionDetails={{dns: dns, endPoint: executeFileEndPoint, username: username, password: password}} isExecuteFileFormOpen={isExecuteFileFormOpen} setIsExecuteFileFormOpen={setIsExecuteFileFormOpen} sourceFilePath={currentFileAttributes.path} handleSnackbarRequest={props.handleSnackbarRequest}/>
+                <ExecuteFileForm isExecuteFileFormOpen={isExecuteFileFormOpen} setIsExecuteFileFormOpen={setIsExecuteFileFormOpen} />
             }
             { isConfirmationDialogOpen && confirmationAction.current == 'delete' &&
                 <ConfirmationDialog onConfirmAction={deleteFile} confirmationDialogMessage={confirmationDialogMessage.current} isConfirmationDialogOpen={isConfirmationDialogOpen} setIsConfirmationDialogOpen={setIsConfirmationDialogOpen}/>
@@ -195,5 +191,3 @@ function TVM_ActionMenu(props: ITVM_ActionMenu): JSX.Element {
         </>
     )
 }
-
-export default TVM_ActionMenu

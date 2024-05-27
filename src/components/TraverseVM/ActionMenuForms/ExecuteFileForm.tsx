@@ -1,32 +1,36 @@
 import { Dialog, Typography, DialogContent, Box, DialogContentText, TextField, Button, Alert, AlertTitle, Checkbox, FormControlLabel } from "@mui/material"
 import CancelPresentationIcon from '@mui/icons-material/CancelPresentation';
-import {useRef, useState } from "react";
+import {useContext, useRef, useState } from "react";
 import IApiOptions from "../../../interfaces/IApiOptions";
 import ApiRequest from "../../../utils/apiRequest";
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
-import IsnackbarProperties from "../../../interfaces/IsnackbarProperties";
+import APIConnectionContext from "../../../contexts/APIConnectionContext";
+import { FileAttributesContext } from "../../../contexts/FileAttributesContext";
+import { useSnackbar } from "../../../contexts/SnackbarContext";
 
 interface IExecuteFileForm {
-    apiConnectionDetails: {dns: string, endPoint: string, username: string, password: password}
     isExecuteFileFormOpen: boolean
     setIsExecuteFileFormOpen: React.Dispatch<React.SetStateAction<boolean>>
-    sourceFilePath: string
-    handleSnackbarRequest(snackbarProperties: IsnackbarProperties): void
 }
 
-function ExecuteFileForm(props: IExecuteFileForm): JSX.Element {
+export default function ExecuteFileForm(props: IExecuteFileForm): JSX.Element {
+    const apiConnectionContext = useContext(APIConnectionContext)
+    const fileAttributesContext = useContext(FileAttributesContext)
+
+    if (!apiConnectionContext || !fileAttributesContext) {
+        throw new Error('TreeView and apiContext must be used within a the respected providers!')
+    }
+
+    const { activeDNSRef, usernameRef, passwordRef, apiBaseEndPoint, executeShellEndPoint } = apiConnectionContext
+    const { currentFileAttributes } = fileAttributesContext
+
+    const { openSnackbar } = useSnackbar();
     const [canExecute, setCanExecute] = useState<boolean>(true)
     const [errorReason, setErrorReason] = useState<string>('')
     const argsInputRef = useRef<string>('')
     const isExecutionBackgroundRef = useRef<boolean>(true)
 
-    const sourceFilePath = props.sourceFilePath
-    const dns = props.apiConnectionDetails.dns
-    const endPoint = props.apiConnectionDetails.endPoint
-    const isExecuteFileFormOpen = props.isExecuteFileFormOpen
-    const username = props.apiConnectionDetails.username
-    const password = props.apiConnectionDetails.password
-    
+    const sourceFilePath = currentFileAttributes.path
 
     function setAlert(message: string): void {
         setCanExecute(false)
@@ -47,17 +51,17 @@ function ExecuteFileForm(props: IExecuteFileForm): JSX.Element {
         }
 
         try {
-            const address = dns+endPoint
+            const address = activeDNSRef.current+apiBaseEndPoint+executeShellEndPoint
             new URL(address)
             const apiOptions : IApiOptions = {
                 url: address,
                 method: 'POST',
                 params: {path: sourceFilePath, args: argsInput},
-                auth: {username: username, password: password}
+                auth: {username: usernameRef.current, password: passwordRef.current}
             }
             try {
                 const {data} = await ApiRequest(apiOptions)
-                props.handleSnackbarRequest({message: 'Successfully executed file, response:\n\n '+data, severity: 'success'})
+                openSnackbar('Successfully executed file, response:\n\n '+data, 'success')
                 handleClose()
             } catch (error) {
                 setAlert('Failed to successfully execute file. Error reason:\n'+error)
@@ -89,11 +93,11 @@ function ExecuteFileForm(props: IExecuteFileForm): JSX.Element {
         isExecutionBackgroundRef.current = !isExecutionBackgroundRef.current
     }
 
-    console.log('Execute File Form Refreshed!')
+    //console.log('Execute File Form Refreshed!')
 
     return (
         <>
-            <Dialog open={isExecuteFileFormOpen} onClose={handleClose}>
+            <Dialog open={props.isExecuteFileFormOpen} onClose={handleClose}>
                 <Typography alignSelf={'center'} marginTop={'8px'}>Execute File</Typography>
                 <DialogContent>
                     <Box sx={{backgroundColor: 'background.default', backdropFilter: 'blur(10px)'}} padding={2} borderRadius={1}>
@@ -107,7 +111,7 @@ function ExecuteFileForm(props: IExecuteFileForm): JSX.Element {
                                 <Alert color="error" severity="error">
                                     <AlertTitle>API Request Error!</AlertTitle>
                                     <pre style={{whiteSpace: 'pre-wrap'}}>
-                                        {"Unable to build a successful response from address:\n"+dns+endPoint+"\n\nReason: "+errorReason}
+                                        {"Unable to build a successful response from address:\n"+activeDNSRef.current+apiBaseEndPoint+executeShellEndPoint+"\n\nReason: "+errorReason}
                                     </pre>
                                 </Alert>
                             </Box>
@@ -122,5 +126,3 @@ function ExecuteFileForm(props: IExecuteFileForm): JSX.Element {
         </>
     )
 }
-
-export default ExecuteFileForm

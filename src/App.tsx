@@ -9,13 +9,14 @@ import CssBaseline from "@mui/material/CssBaseline";
 // Components
 import Home from "./pages/Home";
 import About from "./pages/About";
-import NavBar from "./components/NavBar";
+import NavBar from "./components/Shared/NavBar";
 import useMediaQuery from "@mui/material/useMediaQuery";
 
 // Utils
 import defineTheme from "./utils/defineTheme";
 import Profile from "./pages/Profile";
 import TraverseVM from "./pages/TraverseVM";
+import { SnackbarProvider } from "./providers/SnackbarProvider";
 
 let themeContext: ThemeOptions;
 let theme: Theme;
@@ -40,16 +41,18 @@ function App(): JSX.Element {
     setTheme();
   }
 
-  console.log(themeContext)
+  //console.log(themeContext)
 
   return (
     <>
       <ThemeProvider theme={theme}>
       <CssBaseline />
       <QueryClientProvider client={queryClient}>
+      <SnackbarProvider>
         <Router>
+          <body style={{ height: '100vh', margin: 0, display: 'flex', flexDirection: 'column' }}>
           <NavBar />
-          <main style={{ padding: '20px' }}>
+          <main style={{ padding: '20px', flex: 1}}>
             <Routes>
               <Route path="/*" element={<Home />} />
               <Route path="about" element={<About />} />
@@ -58,8 +61,10 @@ function App(): JSX.Element {
               <Route path='traverseVM' element={<TraverseVM />} />
             </Routes>
           </main>
+          </body>
         </Router>
-        </QueryClientProvider>
+      </SnackbarProvider>
+      </QueryClientProvider>
       </ThemeProvider>
     </>
   )

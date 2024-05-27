@@ -165,12 +165,12 @@ export default function TVM_RenderTree(props: ITVM_RenderTree): JSX.Element {
                 if (props.updateContext) {
                     someArray = data.map(object => {
                         ++nodeId.current
-                        return {...object, id: nodeId.current.toString(), path: parentPath+'/'+object.fileName , children: []}
+                        return {...object, id: nodeId.current.toString(), path: parentPath!='/'? parentPath+'/'+object.fileName : parentPath+object.fileName , children: []}
                     })
                 } else {
                     someArray = data.map(object => {
                         ++nodeIdLocal.current
-                        return {...object, id: nodeIdLocal.current.toString(), path: parentPath+'/'+object.fileName , children: []}
+                        return {...object, id: nodeIdLocal.current.toString(), path: parentPath!='/'? parentPath+'/'+object.fileName : parentPath+object.fileName , children: []}
                     })
                 }
                 const returnObject = {children: [...someArray]}

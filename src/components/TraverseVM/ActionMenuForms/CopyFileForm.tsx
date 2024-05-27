@@ -126,7 +126,7 @@ export default function CopyFileForm(props: ICopyFileForm): JSX.Element {
                         </DialogContentText>
                         <TextField inputRef={filePathInputRef} placeholder={'/File/Path'} defaultValue={filePathInputFieldRef.current} variant='outlined' label='File Path' id='File Path' fullWidth required type={"url"} multiline color={'secondary'} error={!canCopy} FormHelperTextProps={{ error: true }} onChange={e => handleOnChange(e.target.value)} onKeyDown={e => handleKeyDown(e)}/>
                         <Divider variant={'fullWidth'} orientation={"horizontal"} sx={{ paddingTop: '10px', marginBottom: '10px', fontSize: '14px'}}>Tree View</Divider>
-                        <Box maxHeight={'600px'} overflow={'auto'}>
+                        <Box maxHeight={'400px'} overflow={'auto'}>
                             <TVM_RenderTree handleFileClick={handleFileClick}/>
                         </Box>
                         {!canCopy && 
